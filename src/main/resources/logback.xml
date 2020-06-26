@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <property name="LOG_PATTERN" value="%d{HH:mm:ss} [%level] - %msg%n"/>
+
+    <!-- Console appender definition -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Logger definition -->
+    <root level="INFO" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <!-- Specific filters by package -->
+    <logger name="ua.profitsoft" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+</configuration>
