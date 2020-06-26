@@ -3,6 +3,7 @@ package ua.profitsoft.ootest.openofficetest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -33,6 +35,9 @@ public class OpenofficetestApplication implements CommandLineRunner {
     SpringApplication.run(OpenofficetestApplication.class, args);
   }
 
+  @Value("${jodConverter.threadsCount}")
+  private int threadsCount;
+
   @Autowired
   private JodReportsDocumentConverter documentConverter;
 
@@ -44,15 +49,21 @@ public class OpenofficetestApplication implements CommandLineRunner {
       return;
     }
 
-    log.debug("Will process {} files in directory '{}'", getFilesStream(path).count(), path);
+    long totalFiles = getFilesStream(path).count();
+    log.debug("Will process {} files in directory '{}'", totalFiles, path);
 
-    // запускаем параллельно в 4 потока
-    ExecutorService executor = Executors.newFixedThreadPool(4);
-    CompletableFuture[] futures = getFilesStream(path)
-        .map(file -> CompletableFuture.runAsync(() -> convertToPdf(file), executor))
-        .toArray(size -> new CompletableFuture[size]);
-    CompletableFuture.allOf(futures).join();
+    // запускаем параллельно в несколько потоков
+    ExecutorService executor = Executors.newFixedThreadPool(threadsCount);
+    List<CompletableFuture<Boolean>> futures = getFilesStream(path)
+        .map(file -> CompletableFuture.supplyAsync(() -> convertToPdf(file), executor))
+        .collect(Collectors.toList());
 
+    long successfullyConverted = futures.stream()
+        .map(CompletableFuture::join)
+        .filter(Boolean::booleanValue)
+        .count();
+
+    log.info("Converted successfully {} files from {}", successfullyConverted, totalFiles);
     System.exit(0);
   }
 
@@ -65,7 +76,7 @@ public class OpenofficetestApplication implements CommandLineRunner {
     return FilenameUtils.getExtension(f.getFileName().toString());
   }
 
-  private void convertToPdf(Path file) {
+  private boolean convertToPdf(Path file) {
     String targetFilePath = "./out/" + FilenameUtils.getBaseName(file.getFileName().toString()) + ".pdf";
     log.debug("Start converting document {} to {}", file.getFileName().toString(), targetFilePath);
     long time = System.currentTimeMillis();
@@ -74,8 +85,10 @@ public class OpenofficetestApplication implements CommandLineRunner {
           new FileSystemResource(file), getExtension(file),
           out, "pdf");
       log.debug("Finished converting document {} in {}ms", targetFilePath, System.currentTimeMillis() - time);
-    } catch (IOException e) {
+      return true;
+    } catch (Exception e) {
       log.error("Error converting document", e);
+      return false;
     }
   }
 

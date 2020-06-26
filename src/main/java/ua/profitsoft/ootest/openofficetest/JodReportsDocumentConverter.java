@@ -76,11 +76,12 @@ public class JodReportsDocumentConverter {
                 break;
             } catch (DocumentGenerationException e) {
                 if (attempt == conversionAttempts) {
+                    log.error("File '{}' wasn't converted after {} attempts", inputStreamSource.getFilename(), conversionAttempts);
                     throw e;
                 }
             } catch (IOException e) {
                 // IOException в принципе не должно быть, но если вылезло - то сразу пробрасываем наверх
-                throw new DocumentGenerationException("", e);
+                throw new DocumentGenerationException("ERROR_GENERATION", e);
             }
         }
     }
@@ -107,7 +108,7 @@ public class JodReportsDocumentConverter {
             future.cancel(true);
             throw new DocumentGenerationException("ERROR_CONNECTION", e);
         } catch (ExecutionException e) {
-            log.error("Document conversion attempt #" + attempt + " with service failed", e);
+            log.warn("Document conversion attempt #" + attempt + " failed", e);
             if (e.getCause() != null && e.getCause() instanceof DocumentGenerationException) {
                 throw (DocumentGenerationException)e.getCause();
             }
